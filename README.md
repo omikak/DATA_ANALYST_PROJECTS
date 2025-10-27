@@ -86,7 +86,6 @@ Verify cleaned data using:
 SELECT * FROM layoffs_staging2;
 
 🌸 Author
-
-Omika (Omu)
-🎓 Engineering Student @ Chandigarh University
+Omika Gupta
+🎓 Engineering Student at Chandigarh University
 💻 Passionate about Data Analytics, SQL, and Web Development
