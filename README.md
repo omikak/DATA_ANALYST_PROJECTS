@@ -1,91 +1,185 @@
-🧹 Data Cleaning in MySQL – Layoffs Dataset
+# Layoffs Data Cleaning — MySQL
 
-📖 Project Overview
+**Project:** Data Cleaning & EDA Preparation for `layoffs.csv`
+**Author:** Omika Gupta — Engineering Student, Chandigarh University
 
-This project focuses on cleaning and transforming a layoffs dataset using MySQL.
-The goal was to identify and fix inconsistencies, handle missing values, remove duplicates, and make the data ready for Exploratory Data Analysis (EDA).
+---
 
-🗂️ Dataset Information
+## 🚀 Project Summary
 
-Dataset Name: layoffs.csv
+This repository documents a practical, repeatable MySQL workflow to clean and standardize a layoffs dataset so it's ready for Exploratory Data Analysis (EDA) and visualization.
 
-Imported Table: layoffs
+The process preserves the original data, removes duplicates, fixes inconsistent values and formats, handles missing values, and produces a polished staging table called `layoffs_staging2`.
 
-Cleaned Table: layoffs_staging2
+---
 
-🧩 Data Cleaning Process
-1️⃣ Create a Staging Table
+## 🗂 Dataset
 
-To ensure the original data stays safe, a staging table was created and populated:
+* **Filename:** `layoffs.csv`
+* **Imported table:** `layoffs`
+* **Final cleaned table:** `layoffs_staging2`
 
+**Final table columns:**
+
+```
+company | location | industry | total_laid_off | percentage_laid_off | date | stage | country | funds_raised_millions
+```
+
+---
+
+## 🔧 Tools & Technologies
+
+* MySQL / MySQL Workbench
+* CSV (original dataset)
+* Git / GitHub for version control
+
+---
+
+## 🧩 Cleaning Workflow (step-by-step)
+
+Follow the steps below to reproduce the clean dataset.
+
+### 1. Create a safe staging copy
+
+Create a working copy so the original import remains unchanged.
+
+```sql
 CREATE TABLE layoffs_staging LIKE layoffs;
 INSERT INTO layoffs_staging SELECT * FROM layoffs;
+```
 
-2️⃣ Remove Duplicates
+### 2. Remove exact duplicates using a window function
 
-Used CTE and ROW_NUMBER() to identify and remove duplicate rows:
+Use `ROW_NUMBER()` to identify duplicates and delete extras.
 
+```sql
 WITH duplicates_cte AS (
-    SELECT *,
-           ROW_NUMBER() OVER (
-             PARTITION BY company, location, total_laid_off, percentage_laid_off, date
-           ) AS row_num
-    FROM layoffs_staging
+  SELECT *,
+         ROW_NUMBER() OVER (
+           PARTITION BY company, location, total_laid_off, percentage_laid_off, date
+         ) AS row_num
+  FROM layoffs_staging
 )
 DELETE FROM duplicates_cte WHERE row_num > 1;
+```
 
-3️⃣ Standardize Data
+> Tip: Partition keys can be adapted if you want looser duplicate logic (e.g., ignoring `funds_raised_millions`).
 
-Removed extra spaces using TRIM()
+### 3. Standardize text fields and tidy whitespace
 
-Fixed inconsistent values (e.g., Crypto Currency → CryptoCurrency)
+Trim unwanted spaces and normalize inconsistent values.
 
-Converted date formats into proper DATE type
+```sql
+UPDATE layoffs_staging
+SET company = TRIM(company),
+    location = TRIM(location),
+    industry = TRIM(REPLACE(industry, 'Crypto Currency', 'CryptoCurrency'));
+```
 
-UPDATE layoffs_staging2
+### 4. Convert and standardize dates
+
+Convert date strings into `DATE` type (adjust the format string if your source differs).
+
+```sql
+ALTER TABLE layoffs_staging
+MODIFY COLUMN date VARCHAR(50); -- if needed, ensure it's convertible
+
+UPDATE layoffs_staging
 SET date = STR_TO_DATE(date, '%Y-%m-%d');
 
-4️⃣ Handle Missing or Null Values
+-- (Optional) Create a proper DATE column and migrate values
+ALTER TABLE layoffs_staging
+ADD COLUMN date_parsed DATE;
 
-Checked and filled missing or blank fields:
+UPDATE layoffs_staging
+SET date_parsed = STR_TO_DATE(date, '%Y-%m-%d');
 
-SELECT * 
-FROM layoffs_staging2 
+-- Rename/cleanup as appropriate
+```
+
+### 5. Handle missing or blank values
+
+Find rows with missing important fields and either fill or flag them.
+
+```sql
+SELECT * FROM layoffs_staging
 WHERE industry IS NULL OR industry = '';
 
-5️⃣ Remove Unnecessary Columns
-ALTER TABLE layoffs_staging2 DROP COLUMN row_num;
+-- Example: backfill a missing industry with 'Unknown'
+UPDATE layoffs_staging
+SET industry = 'Unknown'
+WHERE industry IS NULL OR industry = '';
+```
 
-📊 Final Cleaned Table
-company	location	industry	total_laid_off	percentage_laid_off	date	stage	country	funds_raised_millions
+### 6. Remove intermediate/unnecessary columns
 
-This table is now clean, standardized, and ready for further analysis or visualization.
+If you created helper columns like `row_num` or temporary text fields, drop them.
 
-⚙️ Tools & Technologies Used
+```sql
+ALTER TABLE layoffs_staging
+DROP COLUMN row_num;
+```
 
-🐬 MySQL Workbench
+### 7. Save final cleaned table
 
-📂 CSV Dataset
+Create the final cleaned table `layoffs_staging2` from your working staging table.
 
-💻 GitHub for version control
+```sql
+CREATE TABLE layoffs_staging2 AS
+SELECT company, location, industry, total_laid_off, percentage_laid_off,
+       COALESCE(date_parsed, STR_TO_DATE(date, '%Y-%m-%d')) AS date,
+       stage, country, funds_raised_millions
+FROM layoffs_staging;
+```
 
-🧠 Key Learnings
+---
 
-✨ Practiced SQL data cleaning using functions like TRIM(), REPLACE(), and STR_TO_DATE()
-✨ Learned to use CTE and window functions for duplicates removal
-✨ Understood how to structure a real-world SQL cleaning workflow
+## ✅ What Changed / Results
 
-🚀 How to Run the Project
+* Duplicates removed
+* Leading/trailing whitespace trimmed
+* Inconsistent industry labels standardized
+* Dates converted to `DATE` type for reliable time-series analysis
+* Missing `industry` values either flagged or filled (based on chosen strategy)
+* Final polished table `layoffs_staging2` ready for EDA, aggregates, and visualizations
 
-Import your dataset into MySQL Workbench
+---
 
-Run each SQL command step by step in your editor
+## 💡 Key Learnings
 
-Verify cleaned data using:
+* Practical use of CTEs and `ROW_NUMBER()` for de-duplication
+* Common string functions (`TRIM`, `REPLACE`) are essential for text normalization
+* Importance of preserving raw data and working on a staging copy
+* Converting to native types (DATE, INT, FLOAT) simplifies analysis downstream
 
-SELECT * FROM layoffs_staging2;
+---
 
-🌸 Author
-Omika Gupta
-🎓 Engineering Student at Chandigarh University
-💻 Passionate about Data Analytics, SQL, and Web Development
+## ▶ How to run this project (quick)
+
+1. Open MySQL Workbench and import `layoffs.csv` into a table named `layoffs`.
+2. Run the SQL statements above step-by-step in the Workbench SQL editor.
+3. Inspect results with:
+
+```sql
+SELECT * FROM layoffs_staging2 LIMIT 100;
+```
+
+4. Use `GROUP BY`, window functions, or visualization tools for EDA.
+
+---
+
+
+---
+
+## 🧾 License
+
+Feel free to reuse this workflow for learning and non-commercial projects. Add a license file if you plan to publish.
+
+---
+
+## ✨ Author
+
+**Omika Gupta** — Engineering Student at Chandigarh University
+Passionate about Data Analytics, SQL, and Web Development
+
+---
